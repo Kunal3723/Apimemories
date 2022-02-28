@@ -11,9 +11,9 @@ export async function getPosts(req, res) {
     }
 }
 export const createPost = async (req, res) => {
-    const { title, message, selectedFile, creator, tags } = req.body;
+    const Post = req.body;
 
-    const newPostMessage = new PostMessage({ title, message, selectedFile, creator, tags })
+    const newPostMessage = new PostMessage({ ...Post, creator:req.userId,createdAt:new Date().toISOString()})
 
     try {
         await newPostMessage.save();
@@ -27,7 +27,7 @@ export const createPost = async (req, res) => {
 export const updatePost = async (req, res) => {
     const { id } = req.params;
     const { title, message, creator, selectedFile, tags } = req.body;
-   
+
     if (!mongoose.Types.ObjectId.isValid(id)) return res.status(404).send(`No post with id: ${id}`);
 
     const updatedPost = { creator, title, message, tags, selectedFile, _id: id };
@@ -39,27 +39,37 @@ export const updatePost = async (req, res) => {
 
 export const deletePost = async (req, res) => {
     const { id } = req.params;
-   
-   
+
+
     if (!mongoose.Types.ObjectId.isValid(id)) return res.status(404).send(`No post with id: ${id}`);
 
-    
+
 
     await PostMessage.findByIdAndRemove(id);
 
-    res.json({message:"Post deleted Successfully"});
+    res.json({ message: "Post deleted Successfully" });
 }
 
 export const likePost = async (req, res) => {
     const { id } = req.params;
-   
-   
+
+    if (!req.userId) { return res.status(404).json("Unauthorized User") }
     if (!mongoose.Types.ObjectId.isValid(id)) return res.status(404).send(`No post with id: ${id}`);
 
-    
+    const post = await PostMessage.findById(id);
 
-  const post=  await PostMessage.findById(id);
-  const updatedPost=await PostMessage.findByIdAndUpdate(id,{likeCount:post.likeCount+1},{new : true});
+    const index = await post.likes.findIndex(function (id) {
+        return id === String(req.userId);
+    })
+    if (index === -1) {
+        post.likes.push(req.userId);
+    }
+    else {
+        post.likes = await post.likes.filter(function (id) {
+            return id !== String(req.userId);
+        })
+    }
+    const updatedPost = await PostMessage.findByIdAndUpdate(id, post, { new: true });
 
     res.json(updatedPost);
 }
